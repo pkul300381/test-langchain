@@ -64,4 +64,5 @@ def verify_setup():
 
 
 if __name__ == "__main__":
-    setup_keychain()
+    # setup_keychain() 
+    verify_setup()
