@@ -1,29 +1,46 @@
 # LangChain Perplexity Agent
 
-A secure LangChain agent configured to use the Perplexity API with multiple credential storage options:
-- Local keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-- Azure KeyVault (cloud-based, cross-platform)
+An interactive LangChain agent that uses the Perplexity API with:
+- **Multi-turn conversation support** - Maintains context across queries
+- **Multiple credential storage options** - Choose what works best for you
+  - Local keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+  - Azure KeyVault (cloud-based, cross-platform)
+  - AWS Secrets Manager (cloud-based)
+- **Interactive CLI** - Ask questions and maintain conversation history
 
-## Security Features
+## Features
 
-This project implements multiple layers of secure credential management:
+### 🤖 Interactive Conversation
+- Ask multiple questions in a single session
+- Maintains conversation history and context
+- Each query is aware of previous interactions
+- Exit with `Ctrl+C` or by typing `quit`/`exit`
 
-### 1. **Local System Keyring** 🔐 (Recommended for local development)
-- **macOS**: Keychain (encrypted by OS)
-- **Windows**: Credential Manager (encrypted by Windows)
-- **Linux**: Secret Service / pass (OS-managed encryption)
+### 🔐 Multiple Credential Storage Options
+1. **Local System Keyring** (Recommended for local development)
+   - macOS Keychain, Windows Credential Manager, Linux Secret Service
+   - Encrypted by your OS
+   - No cloud dependency
 
-### 2. **Azure KeyVault** ☁️ (Recommended for cloud/teams)
-- Cloud-based secret management
-- Works across all platforms
-- Audit logs and access control
-- Managed by Azure
+2. **Azure KeyVault** (Recommended for teams/cloud)
+   - Cloud-based secret management
+   - Audit logs and access control
+   - Works across all platforms
 
-### 3. **Environment Variables (.env fallback)**
-If neither keyring nor KeyVault is available, credentials can be loaded from a `.env` file (excluded from git).
+3. **AWS Secrets Manager** (Recommended for AWS users)
+   - AWS-native secret management
+   - Integration with AWS services
+   - Audit trails and rotation policies
 
-### 4. **No hardcoded secrets**
-API keys are never stored in code or committed to version control.
+4. **Environment Variables** (.env fallback)
+   - For testing and local development
+   - Never committed to version control
+
+### 🛡️ Security Features
+- No hardcoded secrets in code
+- API keys excluded from version control
+- Flexible credential priority chain
+- Support for CI/CD pipelines
 
 ## Setup Instructions
 
@@ -91,7 +108,49 @@ API keys are never stored in code or committed to version control.
 
 4. **Visual Studio Code** (if authenticated)
 
-### Option 3: Environment File (.env)
+### Option 3: AWS Secrets Manager (Recommended for AWS users)
+
+#### Prerequisites:
+- AWS account with access to Secrets Manager
+- AWS CLI installed and configured: `aws configure`
+- IAM permissions to manage secrets
+
+#### Setup:
+
+1. **Install AWS dependencies:**
+   ```bash
+   pip install boto3
+   ```
+
+2. **Store API key in AWS Secrets Manager:**
+   ```bash
+   python3 setup_keychain.py
+   ```
+   Choose option 3 when prompted, then:
+   - Enter your AWS region (e.g., `us-east-1`)
+   - Enter your Perplexity API key (or press Enter for default secret name)
+   
+   The script will:
+   - Authenticate using AWS credentials from `aws configure`
+   - Create or update the secret in Secrets Manager
+   - Save the AWS config to `.env`
+
+3. **Run the agent:**
+   ```bash
+   python3 langchain-agent.py
+   ```
+
+#### AWS Authentication Methods:
+1. **AWS CLI**: `aws configure` (simplest)
+2. **Environment Variables**:
+   ```bash
+   export AWS_ACCESS_KEY_ID=<your-key-id>
+   export AWS_SECRET_ACCESS_KEY=<your-secret-key>
+   export AWS_DEFAULT_REGION=<region>
+   ```
+3. **IAM Role** (when running in AWS services)
+
+### Option 4: Environment File (.env)
 
 If you prefer not to use system keyring or Azure KeyVault:
 
@@ -112,16 +171,56 @@ If you prefer not to use system keyring or Azure KeyVault:
 
 **Important:** Never commit `.env` to version control. It's already in `.gitignore`.
 
-## Credential Retrieval Priority
+## Running the Agent
+
+### Interactive Mode (Recommended)
+
+```bash
+python3 langchain-agent.py
+```
+
+This will start an interactive session where you can:
+1. Ask your first question
+2. Receive an answer with full context retention
+3. Ask follow-up questions that build on previous answers
+4. Continue the conversation indefinitely
+5. Exit with `Ctrl+C` or by typing `quit`/`exit`
+
+#### Example Session:
+```
+==================================================
+Running agent with Perplexity API
+==================================================
+
+Enter your query (or 'quit' to exit): What is 87 * 45?
+
+[INFO] Using API key from local keyring
+FINAL RESULT:
+87 × 45 = 3915.
+
+Enter your query (or 'quit' to exit): Write a poem about that number
+
+FINAL RESULT:
+Thirty-nine fifteen sings, a mathematical delight...
+(The agent remembers the previous answer!)
+
+Enter your query (or 'quit' to exit): quit
+Goodbye!
+```
+
+## Managing Credentials
+
+### Credential Retrieval Priority
 
 The agent retrieves credentials in this order:
 
 1. **Local Keyring** (if available)
-2. **Azure KeyVault** (if configured)
-3. **.env file** (if `PERPLEXITY_API_KEY` is set)
-4. **Environment variable** (if `PERPLEXITY_API_KEY` is set in shell)
+2. **Azure KeyVault** (if `AZURE_KEYVAULT_URL` is set)
+3. **AWS Secrets Manager** (if `AWS_REGION` is set)
+4. **.env file** (if `PERPLEXITY_API_KEY` is set)
+5. **Environment variable** (if `PERPLEXITY_API_KEY` is set in shell)
 
-## Managing Credentials
+This allows flexible deployment across different environments.
 
 ### Local Keyring
 
@@ -168,13 +267,34 @@ python3 setup_keychain.py
 az keyvault secret delete --vault-name <vault-name> --name perplexity-api-key
 ```
 
+### AWS Secrets Manager
+
+#### View stored secrets:
+```bash
+aws secretsmanager list-secrets --region <region>
+aws secretsmanager get-secret-value --secret-id perplexity-api-key --region <region>
+```
+
+#### Update credentials:
+```bash
+python3 setup_keychain.py
+# Choose option 3
+```
+
+#### Delete a secret:
+```bash
+aws secretsmanager delete-secret --secret-id perplexity-api-key --region <region>
+```
+
 ## Files
 
-- `langchain-agent.py` - Main agent script
-- `setup_keychain.py` - Interactive script to store API key in Keychain
+- `langchain-agent.py` - Main interactive agent script with conversation history
+- `setup_keychain.py` - Interactive credential setup tool (Local Keyring, Azure KeyVault, AWS Secrets Manager)
 - `.env.example` - Template for environment variables
 - `.env` - Environment file (git-ignored, created by user)
 - `.gitignore` - Excludes sensitive files from version control
+- `README.md` - This file
+- `CREDENTIAL_STORAGE.md` - Detailed credential storage reference guide
 
 ## Getting API Keys
 
@@ -197,8 +317,14 @@ az keyvault secret delete --vault-name <vault-name> --name perplexity-api-key
 ## Troubleshooting
 
 ### "PERPLEXITY_API_KEY not found"
-- Run `python3 setup_keychain.py` to store key in local keyring or Azure KeyVault, OR
-- Create `.env` file with your API key
+- Run `python3 setup_keychain.py` to store key in local keyring, Azure KeyVault, or AWS Secrets Manager
+- Or create `.env` file with your API key
+
+### Conversation not maintaining context
+- The agent automatically maintains conversation history in memory
+- Context is lost when you exit the program (this is expected)
+- Each new session starts fresh
+- To maintain conversations across sessions, consider logging or persistence features
 
 ### Local keyring not working
 - **macOS**: Ensure Keychain is accessible
@@ -209,26 +335,55 @@ az keyvault secret delete --vault-name <vault-name> --name perplexity-api-key
 
 ### Azure KeyVault not working
 - Ensure you're authenticated: `az login`
-- Check KeyVault URL is correct
+- Check KeyVault URL is correct in `.env` or `AZURE_KEYVAULT_URL` environment variable
 - Verify you have permissions to manage secrets
 - Check that Azure packages are installed: `pip list | grep azure`
+
+### AWS Secrets Manager not working
+- Ensure you're authenticated: `aws configure`
+- Check region is correct in `.env` or `AWS_REGION` environment variable
+- Check secret name is correct: `aws secretsmanager list-secrets --region <region>`
+- Verify IAM permissions to access Secrets Manager
+- Check that boto3 is installed: `pip list | grep boto3`
+
+### Exit Program Issues
+- Use `Ctrl+C` to gracefully exit
+- Or type `quit` or `exit` when prompted for a query
+- If stuck, use `Ctrl+D` (on Unix/Linux) or `Ctrl+Z` then `Enter` (on Windows)
 
 ### Cross-platform Recommendations
 
 #### For Local Development (single machine):
-- **Use Local Keyring**
+- **Use Local Keyring** 🔐
 - Simple setup with `python3 setup_keychain.py`
 - No additional cloud infrastructure needed
+- Works offline
 
 #### For Teams / Production:
-- **Use Azure KeyVault**
+- **Use Azure KeyVault** or **AWS Secrets Manager** ☁️
 - Shared, auditable, cloud-managed
 - Supports multiple authentication methods
-- Works across all platforms
+- Access control and rotation policies
+- Choose based on your cloud provider
 
 #### For CI/CD Pipelines:
-- Use Azure KeyVault with service principal authentication
+- **Use AWS Secrets Manager** (if on AWS) or **Azure KeyVault** (if on Azure)
+- With service principal/role authentication
 - Or use environment variables (set securely in CI/CD system)
+
+## Dependencies
+
+- `python-dotenv` - Load environment variables
+- `keyring` - System keyring support
+- `langchain-perplexity` - Perplexity API integration
+- `azure-identity` (optional) - Azure authentication
+- `azure-keyvault-secrets` (optional) - Azure KeyVault support
+- `boto3` (optional) - AWS SDK for Secrets Manager
+
+Install all with:
+```bash
+pip install -r requirements.txt
+```
 
 ## License
 
