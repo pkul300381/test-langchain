@@ -28,6 +28,7 @@ except ImportError:
 # AWS imports (optional)
 try:
     import boto3
+    from botocore.exceptions import NoCredentialsError, PartialCredentialsError
     AWS_AVAILABLE = True
 except ImportError:
     AWS_AVAILABLE = False
@@ -174,9 +175,21 @@ def setup_aws_secrets_manager():
         return False
     
     try:
-        print("\nConnecting to AWS...")
+        print("\nChecking AWS credentials...")
+        # Check for credentials before proceeding
+        session = boto3.Session()
+        credentials = session.get_credentials()
+
+        if not credentials:
+            print("❌ Error: No AWS credentials found.")
+            print("\nTo fix this, please:")
+            print("1. Run 'aws configure' to set up your credentials")
+            print("2. Or set environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
+            return False
+
+        print("Connecting to AWS...")
         # Create Secrets Manager client
-        client = boto3.client("secretsmanager", region_name=aws_region)
+        client = session.client("secretsmanager", region_name=aws_region)
         
         print("Storing secret in AWS Secrets Manager...")
         
@@ -217,6 +230,10 @@ def setup_aws_secrets_manager():
         print("You can now run: python3 langchain-agent.py")
         return True
         
+    except (NoCredentialsError, PartialCredentialsError):
+        print("❌ Error: AWS credentials not found or incomplete.")
+        print("\nPlease run 'aws configure' or set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY environment variables.")
+        return False
     except Exception as e:
         print(f"❌ Error storing in AWS Secrets Manager: {e}")
         print("\nMake sure you have:")
