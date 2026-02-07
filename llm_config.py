@@ -80,8 +80,9 @@ def get_api_key(provider: str, service_name: str = "langchain-agent", preferred_
     load_dotenv()
     
     if provider not in SUPPORTED_LLMS:
+        logger.error(f"Unsupported LLM provider requested: {provider}")
         raise ValueError(f"Unsupported LLM provider: {provider}")
-    
+        
     config = SUPPORTED_LLMS[provider]
     env_var = config["env_var"]
     secret_name = f"{provider}-api-key"
