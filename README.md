@@ -208,6 +208,16 @@ Enter your query (or 'quit' to exit): quit
 Goodbye!
 ```
 
+### AG-UI Web Console
+
+Launch a web UI that streams AG-UI events over SSE:
+
+```bash
+python3 agui_server.py
+```
+
+Open `http://localhost:8000` in your browser. Use the model dropdown to pick a provider/model, then chat in the text box.
+
 ## Managing Credentials
 
 ### Credential Retrieval Priority
@@ -289,6 +299,10 @@ aws secretsmanager delete-secret --secret-id perplexity-api-key --region <region
 ## Files
 
 - `langchain-agent.py` - Main interactive agent script with conversation history
+- `agui_server.py` - FastAPI server that exposes AG-UI streaming endpoints + serves the web UI
+- `ui/index.html` - AG-UI console UI shell
+- `ui/app.js` - Frontend logic for SSE streaming + model selection
+- `ui/app.css` - UI styling
 - `setup_keychain.py` - Interactive credential setup tool (Local Keyring, Azure KeyVault, AWS Secrets Manager)
 - `.env.example` - Template for environment variables
 - `.env` - Environment file (git-ignored, created by user)
