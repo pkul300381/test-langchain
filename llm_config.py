@@ -129,7 +129,6 @@ def get_api_key(provider: str, service_name: str = "langchain-agent", preferred_
         elif preferred_source == "aws":
             try:
                 import boto3
-                import os
                 session = boto3.Session()
 
                 aws_region = (
@@ -250,103 +249,6 @@ def get_api_key(provider: str, service_name: str = "langchain-agent", preferred_
     except Exception as e:
         logger.debug(f"AWS Secrets Manager check failed: {str(e)}")
         pass
-    
-    logger.warning(f"No API key found for provider '{provider}' in any credential source")
-    return None
-    """
-    Retrieve API key for a provider in order of priority:
-    1. Local keyring
-    2. Azure KeyVault
-    3. AWS Secrets Manager
-    4. .env file
-    5. Environment variable
-    """
-    from dotenv import load_dotenv
-    
-    load_dotenv()
-    
-    if provider not in SUPPORTED_LLMS:
-        raise ValueError(f"Unsupported LLM provider: {provider}")
-    
-    config = SUPPORTED_LLMS[provider]
-    env_var = config["env_var"]
-    secret_name = f"{provider}-api-key"
-    
-    api_key = None
-    
-    # 1. Try local keyring
-    try:
-        api_key = keyring.get_password(service_name, provider)
-        if api_key:
-            logger.info(f"Credential Source: Local Keyring (Service: {service_name}, Username: {provider})")
-            print(f"[DEBUG] API key retrieved from: Local Keyring")
-            return api_key
-    except Exception as e:
-        logger.debug(f"Local keyring check failed: {str(e)}")
-        pass
-    
-    # 2. Try Azure KeyVault
-    try:
-        from azure.identity import DefaultAzureCredential
-        from azure.keyvault.secrets import SecretClient
-        
-        keyvault_url = os.getenv("AZURE_KEYVAULT_URL")
-        if keyvault_url:
-            credential = DefaultAzureCredential()
-            client = SecretClient(vault_url=keyvault_url, credential=credential)
-            secret = client.get_secret(secret_name)
-            if secret:
-                logger.info(f"Credential Source: Azure KeyVault (URL: {keyvault_url}, Secret: {secret_name})")
-                print(f"[DEBUG] API key retrieved from: Azure KeyVault")
-                return secret.value
-    except Exception as e:
-        logger.debug(f"Azure KeyVault check failed: {str(e)}")
-        pass
-    
-    # 3. Try AWS Secrets Manager
-    try:
-        import boto3
-        
-        aws_region = os.getenv("AWS_REGION")
-        if aws_region:
-            client = boto3.client("secretsmanager", region_name=aws_region)
-            try:
-                secret = client.get_secret_value(SecretId=secret_name)
-                api_key = secret.get("SecretString")
-                if api_key:
-                    # Get AWS account ID and user info for audit logging
-                    try:
-                        sts_client = boto3.client("sts", region_name=aws_region)
-                        identity = sts_client.get_caller_identity()
-                        aws_account = identity.get("Account", "unknown")
-                        aws_arn = identity.get("Arn", "unknown")
-                        logger.info(f"Credential Source: AWS Secrets Manager (Region: {aws_region}, Secret: {secret_name}, Account: {aws_account}, ARN: {aws_arn})")
-                    except Exception as audit_e:
-                        logger.debug(f"Could not retrieve AWS identity info: {str(audit_e)}")
-                        logger.info(f"Credential Source: AWS Secrets Manager (Region: {aws_region}, Secret: {secret_name})")
-                    print(f"[DEBUG] API key retrieved from: AWS Secrets Manager (region: {aws_region})")
-                    return api_key
-            except client.exceptions.ResourceNotFoundException:
-                logger.debug(f"Secret '{secret_name}' not found in AWS Secrets Manager (region: {aws_region})")
-    except Exception as e:
-        logger.debug(f"AWS Secrets Manager check failed: {str(e)}")
-        pass
-    
-    # 4. Try .env file
-    if env_var:
-        api_key = os.getenv(env_var)
-        if api_key:
-            logger.info(f"Credential Source: .env file (Variable: {env_var})")
-            print(f"[DEBUG] API key retrieved from: .env file ({env_var})")
-            return api_key
-    
-    # 5. Try environment variable (already covered above, but be explicit)
-    if env_var:
-        api_key = os.getenv(env_var)
-        if api_key:
-            logger.info(f"Credential Source: Environment variable (Variable: {env_var})")
-            print(f"[DEBUG] API key retrieved from: Environment variable ({env_var})")
-            return api_key
     
     logger.warning(f"No API key found for provider '{provider}' in any credential source")
     return None

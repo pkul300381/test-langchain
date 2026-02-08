@@ -2,11 +2,25 @@ import json
 import time
 import uuid
 from typing import Dict, List, Optional
+import warnings
+import os
+
+# Suppress urllib3 NotOpenSSLWarning when the system ssl is LibreSSL.
+# This is a benign warning on macOS with system LibreSSL and doesn't affect runtime.
+try:
+    from urllib3.exceptions import NotOpenSSLWarning
+
+    warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
+except Exception:
+    # If urllib3 isn't available yet or the exception class isn't present,
+    # skip silencing the warning to avoid import errors.
+    pass
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+ 
 
 from langchain_core.messages import HumanMessage, AIMessage
 from llm_config import SUPPORTED_LLMS, initialize_llm
@@ -147,4 +161,5 @@ async def run_agent(payload: RunRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("agui_server:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("agui_server:app", host="0.0.0.0", port=port, reload=True)
