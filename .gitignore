@@ -1,4 +1,4 @@
-.env.agent-session.log
+.env
 # Logs
 *.log
 .agent-session.log
