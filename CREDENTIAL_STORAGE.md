@@ -100,6 +100,36 @@ python3 setup_keychain.py azure
 
 ---
 
+## AWS Secrets Manager Setup Details
+
+### 1. Configure AWS Credentials (if you haven't)
+
+```bash
+# Option 1: Use AWS CLI (simplest)
+aws configure
+# Enter your AWS Access Key ID, Secret Access Key, and default region
+
+# Option 2: Environment Variables
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_DEFAULT_REGION="us-east-1"
+```
+
+### 2. Verify Credentials
+
+```bash
+aws sts get-caller-identity
+```
+
+### 3. Set up the agent
+
+```bash
+python3 setup_keychain.py aws
+# Enter your region and Perplexity API key
+```
+
+---
+
 ## Comparison Table
 
 | Feature | Local Keyring | Azure KeyVault | .env File |
