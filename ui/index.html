@@ -6,22 +6,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AWS Infra Agent Bot - AG-UI Console</title>
   <link rel="stylesheet" href="/static/app.css" />
+  <link rel="stylesheet" href="/static/audit.css" />
 </head>
 
 <body>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark">AWS Infra Agent</span>
-        <span class="brand-sub">Operations Console</span>
+        <span id="brandMark" class="brand-mark">AWS Infra Agent</span>
+        <span id="brandSub" class="brand-sub">Operations Console</span>
       </div>
       <div class="topbar-actions">
+        <button id="navConsoleBtn" class="btn-secondary" style="display: none;">Console</button>
+        <button id="navFaqBtn" class="btn-secondary">FAQ & Prompts</button>
+        <button id="navAuditBtn" class="btn-secondary">Audit Trail</button>
         <button id="awsLoginBtn" class="btn-primary">CLI Login</button>
         <button id="awsConsoleBtn" class="btn-secondary">AWS Console</button>
       </div>
     </header>
 
-    <main class="layout">
+    <main id="consoleView" class="layout">
       <aside class="left-rail">
         <section class="rail-card">
           <h3>Runtime</h3>
@@ -33,28 +37,44 @@
             <select id="mcpSelect">
               <option value="none">None</option>
               <option value="aws_terraform" selected>AWS Infrastructure (Terraform)</option>
+              <option value="azure_terraform">Azure Infrastructure (Terraform)</option>
+            </select>
+
+            <label for="toolOutputSelect">Output Mode</label>
+            <select id="toolOutputSelect">
+              <option value="text-only" selected>Text Only</option>
+              <option value="full-tool-output">Full Tool Output</option>
             </select>
           </div>
         </section>
 
         <section class="rail-card">
-          <h3>AWS Identity</h3>
+          <h3 id="identityTitle">AWS Identity</h3>
           <div id="awsIdentity" class="identity-badge" style="display: none;">
             <span id="awsAccount">AWS: ---</span>
           </div>
-          <p class="rail-help">Use CLI Login to refresh profile credentials without leaving this console.</p>
+          <p id="identityHelp" class="rail-help">Use CLI Login to refresh profile credentials without leaving this console.</p>
         </section>
 
         <section class="rail-card">
           <h3>Quick Actions</h3>
-          <div class="chip-grid">
+          <div id="quickActions" class="chip-grid">
             <button type="button" class="prompt-chip" data-prompt="What can you do for me?">Capabilities</button>
             <button type="button" class="prompt-chip" data-prompt="List all AWS resources in my account">Inventory</button>
-            <button type="button" class="prompt-chip" data-prompt="Start ECS deployment workflow in ap-south-1">Start ECS Flow</button>
-            <button type="button" class="prompt-chip" data-prompt="Review my current ECS deployment workflow">Review ECS</button>
-            <button type="button" class="prompt-chip" data-prompt="Run terraform_plan for my last project">Terraform Plan</button>
             <button type="button" class="prompt-chip" data-prompt="Show my current AWS identity and permissions">Who Am I</button>
           </div>
+        </section>
+
+        <section class="rail-card rail-audit-card">
+          <h3>Audit Trail</h3>
+          <p class="rail-help">Review change history with filters for action, status, actor, and export logs.</p>
+          <button type="button" class="btn-primary rail-audit-link" data-nav="audit">Open Audit Trail</button>
+        </section>
+
+        <section class="rail-card rail-faq-card">
+          <h3>FAQ and Prompts</h3>
+          <p class="rail-help">Browse supported questions, cost and inventory examples, MCP help, and maker-checker guidance.</p>
+          <button type="button" class="btn-secondary rail-faq-link" data-nav="faq">Open FAQ Page</button>
         </section>
       </aside>
 
@@ -63,11 +83,32 @@
           <div class="status-pill">Live Session</div>
           <div class="status-meta" id="statusMeta">Idle</div>
         </div>
+        <div id="runProgress" class="run-progress hidden-view" aria-live="polite">
+          <span class="run-progress-spinner" aria-hidden="true"></span>
+          <span id="runProgressText">Operation in progress</span>
+          <span id="runProgressTimer" class="run-progress-timer">00:00</span>
+        </div>
+
+        <section class="rail-card mc-flow-card">
+          <div class="mc-flow-header">
+            <h3>Maker-Checker Workflow</h3>
+            <span id="mcTotalItems" class="status-meta">Total Items: 4</span>
+          </div>
+          <div id="mcFlowSteps" class="mc-flow-steps">
+            <button type="button" class="mc-step completed" data-step="1">1. Request Captured</button>
+            <button type="button" class="mc-step current" data-step="2">2. Awaiting Approval</button>
+            <button type="button" class="mc-step pending" data-step="3">3. Approved</button>
+            <button type="button" class="mc-step pending" data-step="4">4. Executed</button>
+          </div>
+          <div class="mc-flow-actions">
+            <button type="button" id="mcExecuteBtn" class="btn-primary hidden-view">Execute Plan</button>
+          </div>
+        </section>
 
         <div class="chat-stream" id="chatStream">
           <div class="message assistant">
             <div class="message-meta">Assistant</div>
-            <div class="message-body">
+            <div id="welcomeMessage" class="message-body">
               Welcome back. I can guide AWS infrastructure workflows, validate prerequisites, and execute MCP tools in real time.
             </div>
           </div>
@@ -98,13 +139,13 @@
         </section>
 
         <section class="rail-card">
-          <h3>Guided Workflow</h3>
-          <ol class="workflow-list">
-            <li>Start workflow and collect requirements</li>
-            <li>Validate IDs, roles, and region prerequisites</li>
-            <li>Create Terraform project</li>
-            <li>Run plan then apply</li>
-          </ol>
+          <h3>Maker-Checker Queue</h3>
+          <p id="mcProfileLabel" class="rail-help">Profile: --</p>
+          <div id="mcQueueActions" class="chip-grid">
+            <button type="button" id="mcRefreshBtn" class="prompt-chip">Refresh Queue</button>
+            <button type="button" id="mcManageRolesBtn" class="prompt-chip">Manage Roles</button>
+          </div>
+          <div id="mcPendingList" class="capabilities-content">No pending approvals.</div>
         </section>
 
         <section class="rail-card capabilities-card">
@@ -115,9 +156,302 @@
         </section>
       </aside>
     </main>
+
+    <main id="auditView" class="audit-layout hidden-view">
+      <section class="audit-summary-grid">
+        <article class="stat-card audit-card">
+          <div class="stat-label">Total Actions</div>
+          <div id="totalActions" class="audit-metric">0</div>
+        </article>
+        <article class="stat-card audit-card">
+          <div class="stat-label">Successful</div>
+          <div id="successfulActions" class="audit-metric audit-ok">0</div>
+        </article>
+        <article class="stat-card audit-card">
+          <div class="stat-label">Failed</div>
+          <div id="failedActions" class="audit-metric audit-fail">0</div>
+        </article>
+        <article class="stat-card audit-card">
+          <div class="stat-label">Blocked</div>
+          <div id="blockedActions" class="audit-metric audit-warn">0</div>
+        </article>
+      </section>
+
+      <section class="rail-card audit-filter-card">
+        <div class="audit-filter-header">
+          <h3>Filters</h3>
+          <button id="clearFiltersBtn" class="btn-secondary">Clear Filters</button>
+        </div>
+        <div class="audit-filters">
+          <label>
+            Cloud Provider
+            <select id="cloudFilter">
+              <option value="">All Providers</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select id="statusFilter">
+              <option value="">All Statuses</option>
+            </select>
+          </label>
+          <label>
+            Action
+            <select id="actionFilter">
+              <option value="">All Actions</option>
+            </select>
+          </label>
+          <label>
+            User
+            <select id="userFilter">
+              <option value="">All Users</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="rail-card audit-table-card">
+        <div class="audit-table-header">
+          <h3>Audit Entries</h3>
+          <div class="audit-table-actions">
+            <span id="entryCount" class="audit-count">Showing 0 entries</span>
+            <button id="refreshAuditBtn" class="btn-secondary">Refresh</button>
+          </div>
+        </div>
+        <div class="audit-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Cloud</th>
+                <th>Action</th>
+                <th>Resource</th>
+                <th>Status</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rail-card audit-note">
+        <h3>Compliance Notice</h3>
+        <p>
+          Workflow audit events are retained with daily rotation (up to 30 files). Export logs for compliance reporting and long-term archival where needed.
+        </p>
+      </section>
+
+      <div class="topbar-actions">
+        <button id="exportBtn" class="btn-primary">Export Audit Log</button>
+      </div>
+    </main>
+
+    <main id="faqView" class="faq-layout hidden-view">
+      <section class="faq-hero">
+        <div>
+          <div class="faq-kicker">Agent Guide</div>
+          <h1>FAQ and Example Prompts</h1>
+          <p class="faq-lead">
+            Use this page to understand what the agent can answer, which questions work well, and how follow-up prompts should be phrased for inventory, cost, MCP, and maker-checker workflows.
+          </p>
+        </div>
+        <div class="faq-hero-actions">
+          <button type="button" class="btn-primary faq-action" data-faq-prompt="What can you do for me?">Try Capabilities</button>
+          <button type="button" class="btn-secondary faq-action" data-faq-prompt="Fetch me the total cost of all resources in my AWS account.">Try Cost Prompt</button>
+        </div>
+      </section>
+
+      <section class="faq-grid">
+        <article class="rail-card faq-card">
+          <h3>Recommended Questions</h3>
+          <div class="faq-question-list">
+            <button type="button" class="faq-question" data-faq-prompt="Fetch me the total cost of all resources in my AWS account.">
+              <span class="faq-question-number">1</span>
+              <span>Fetch me the total cost of all resources in my AWS account.</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="Can you produce an itemized breakup?">
+              <span class="faq-question-number">2</span>
+              <span>Can you produce an itemized breakup?</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="Please fetch me a list of all active resources on my account and group them per AWS region.">
+              <span class="faq-question-number">3</span>
+              <span>Please fetch me a list of all active resources on my account and group them per AWS region.</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="Are there any ECR or ECS resources on my account in region ap-south-1?">
+              <span class="faq-question-number">4</span>
+              <span>Are there any ECR or ECS resources on my account in region ap-south-1?</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="What can you do for me?">
+              <span class="faq-question-number">5</span>
+              <span>What can you do for me?</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="What are your capabilities?">
+              <span class="faq-question-number">6</span>
+              <span>What are your capabilities?</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="Give me a list of all MCP tools that are active for this agent.">
+              <span class="faq-question-number">7</span>
+              <span>Give me a list of all MCP tools that are active for this agent.</span>
+            </button>
+            <button type="button" class="faq-question" data-faq-prompt="How does maker-checker workflow work?">
+              <span class="faq-question-number">8</span>
+              <span>How does maker-checker workflow work?</span>
+            </button>
+          </div>
+        </article>
+
+        <article class="rail-card faq-card">
+          <h3>Cost and Inventory FAQ</h3>
+          <div class="faq-entry">
+            <h4>How do I ask for total AWS cost?</h4>
+            <p>Use direct billing language. Example: <code>Fetch me the total cost of all resources in my AWS account.</code></p>
+          </div>
+          <div class="faq-entry">
+            <h4>How do I ask for service-level cost detail?</h4>
+            <p>Ask a follow-up like <code>Can you produce an itemized breakup?</code> after the total is returned.</p>
+          </div>
+          <div class="faq-entry">
+            <h4>How do I ask for region-wise inventory?</h4>
+            <p>Use <code>Please fetch me a list of all active resources on my account and group them per AWS region.</code></p>
+          </div>
+          <div class="faq-entry">
+            <h4>Can I drill into one region?</h4>
+            <p>Yes. Example: <code>Are there any ECR or ECS resources on my account in region ap-south-1?</code></p>
+          </div>
+        </article>
+
+        <article class="rail-card faq-card">
+          <h3>Capabilities and MCP FAQ</h3>
+          <div class="faq-entry">
+            <h4>How do I ask what the agent can do?</h4>
+            <p>Try <code>What can you do for me?</code> or <code>What are your capabilities?</code></p>
+          </div>
+          <div class="faq-entry">
+            <h4>How do I inspect the active MCP tool surface?</h4>
+            <p>Use <code>Give me a list of all MCP tools that are active for this agent.</code></p>
+          </div>
+          <div class="faq-entry">
+            <h4>Can the answer change by selected MCP server?</h4>
+            <p>Yes. The available tools depend on the MCP server selected in the Runtime panel.</p>
+          </div>
+        </article>
+
+        <article class="rail-card faq-card">
+          <h3>Maker-Checker FAQ</h3>
+          <div class="faq-entry">
+            <h4>How do I ask about approvals?</h4>
+            <p>Use <code>How does maker-checker workflow work?</code></p>
+          </div>
+          <div class="faq-entry">
+            <h4>When is approval required?</h4>
+            <p>Mutating AWS actions can be queued for approval based on the active profile and current checker configuration.</p>
+          </div>
+          <div class="faq-entry">
+            <h4>What happens after approval?</h4>
+            <p>The queued tool call is executed with the approved arguments. Approval does not regenerate the request from scratch.</p>
+          </div>
+        </article>
+
+        <article class="rail-card faq-card faq-card-wide">
+          <h3>Prompting Tips</h3>
+          <div class="faq-tip-grid">
+            <div class="faq-tip">
+              <h4>Be explicit about scope</h4>
+              <p>Say <code>all resources</code>, <code>per region</code>, or the exact region name when you want precise inventory results.</p>
+            </div>
+            <div class="faq-tip">
+              <h4>Use follow-up prompts naturally</h4>
+              <p>Once the agent returns a summary, ask for a breakup, filter, or region-specific deep dive in the next message.</p>
+            </div>
+            <div class="faq-tip">
+              <h4>Ask capabilities before mutation</h4>
+              <p>If you are unsure which tools are active, ask for capabilities or MCP tools first, then request the operation.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="mcModal" class="mc-modal hidden-view">
+    <div class="mc-modal-backdrop" data-close="true"></div>
+    <div class="mc-modal-panel">
+      <div class="mc-modal-head">
+        <h3 id="mcModalTitle">Maker-Checker Review</h3>
+        <button type="button" id="mcModalClose" class="btn-secondary">Close</button>
+      </div>
+      <div class="mc-modal-body">
+        <div class="mc-modal-meta" id="mcModalMeta"></div>
+        <h4>Plan Preview</h4>
+        <pre id="mcModalPlan" class="tool-result">Loading...</pre>
+        <h4>Comments</h4>
+        <div id="mcCommentThread" class="mc-comment-thread">No comments yet.</div>
+        <textarea id="mcCommentInput" class="mc-comment-input" rows="3" placeholder="Add comment for maker/checker..."></textarea>
+      </div>
+      <div class="mc-modal-actions">
+        <button type="button" id="mcAddCommentBtn" class="btn-secondary">Add Comment</button>
+        <button type="button" id="mcRejectBtn" class="mc-btn-reject">Reject</button>
+        <button type="button" id="mcApproveBtn" class="mc-btn-approve">Approve</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="awsLoginModal" class="mc-modal hidden-view">
+    <div class="mc-modal-backdrop" data-close-aws-login="true"></div>
+    <div class="mc-modal-panel">
+      <div class="mc-modal-head">
+        <h3>AWS CLI Login</h3>
+        <button type="button" id="awsLoginModalClose" class="btn-secondary">Close</button>
+      </div>
+      <div class="mc-modal-body">
+        <div class="control-grid">
+          <label for="awsProfileSelect">Profile</label>
+          <select id="awsProfileSelect"></select>
+        </div>
+        <p id="awsLoginStatusText" class="rail-help" style="margin-top: 12px;">Choose a profile to start login.</p>
+        <div class="mc-modal-meta" id="awsDiagnosticsMeta">Diagnostics unavailable.</div>
+        <pre id="awsDiagnosticsPanel" class="tool-result">No diagnostics yet.</pre>
+      </div>
+      <div class="mc-modal-actions">
+        <button type="button" id="awsRunDiagnosticsBtn" class="btn-secondary">Run Diagnostics</button>
+        <button type="button" id="awsStartLoginBtn" class="btn-primary">Start Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mcRolesModal" class="mc-modal hidden-view">
+    <div class="mc-modal-backdrop" data-close-mc-roles="true"></div>
+    <div class="mc-modal-panel">
+      <div class="mc-modal-head">
+        <h3>Maker-Checker Role Management</h3>
+        <button type="button" id="mcRolesModalClose" class="btn-secondary">Close</button>
+      </div>
+      <div class="mc-modal-body">
+        <p class="rail-help">Assign one or more checker profiles. All other selected profiles can be makers.</p>
+        <div id="mcRolesStatusText" class="mc-modal-meta">Loading role assignments...</div>
+        <div class="mc-roles-grid">
+          <div>
+            <h4>Checker Profiles</h4>
+            <div id="mcCheckerProfilesList" class="mc-role-list">No profiles discovered.</div>
+          </div>
+          <div>
+            <h4>Maker Profiles</h4>
+            <div id="mcMakerProfilesList" class="mc-role-list">No profiles discovered.</div>
+          </div>
+        </div>
+        <h4>IAM Users (Reference)</h4>
+        <div id="mcIamUsersList" class="mc-iam-list">No IAM users available.</div>
+      </div>
+      <div class="mc-modal-actions">
+        <button type="button" id="mcSaveRolesBtn" class="btn-primary">Save Roles</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/audit.js"></script>
 </body>
 
 </html>

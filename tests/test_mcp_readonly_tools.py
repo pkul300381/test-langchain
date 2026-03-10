@@ -17,6 +17,7 @@ def server():
 def test_readonly_tools_are_exposed(server):
     tool_names = {tool["name"] for tool in server.list_tools()}
     assert "list_account_inventory" in tool_names
+    assert "get_cost_explorer_summary" in tool_names
     assert "list_aws_resources" in tool_names
     assert "describe_resource" in tool_names
 
@@ -43,6 +44,17 @@ def test_execute_tool_routes_describe_resource(server, monkeypatch):
     assert result["resource_id"] == "vpc-123"
 
 
+def test_execute_tool_routes_get_cost_explorer_summary(server, monkeypatch):
+    monkeypatch.setattr(
+        server,
+        "_get_cost_explorer_summary",
+        lambda params: {"success": True, "total_cost": {"amount": 12.34, "currency": "USD"}},
+    )
+    result = server.execute_tool("get_cost_explorer_summary", {"granularity": "MONTHLY"})
+    assert result["success"] is True
+    assert result["total_cost"]["amount"] == 12.34
+
+
 def test_list_account_inventory_summarizes_counts(server, monkeypatch):
     def fake_list_aws_resources(params):
         rtype = params["resource_type"]
@@ -62,6 +74,8 @@ def test_list_account_inventory_summarizes_counts(server, monkeypatch):
     assert result["summary"]["rds"] == 0
     assert result["summary"]["lambda"] == 8
     assert result["summary"]["ecs"] == 4
+    assert result["total_resources"] == 20
+    assert result["regions_scanned_count"] == 2
     assert len(result["regional_breakdown"]) == 2
 
 
@@ -80,3 +94,32 @@ def test_list_aws_resources_s3_with_mocked_boto(server, monkeypatch):
     assert result["success"] is True
     assert result["count"] == 1
     assert result["items"][0]["name"] == "bucket-a"
+
+
+def test_cost_summary_uses_group_totals_when_total_is_empty(server, monkeypatch):
+    fake_ce = MagicMock()
+    fake_ce.get_cost_and_usage.return_value = {
+        "ResultsByTime": [
+            {
+                "TimePeriod": {"Start": "2026-02-01", "End": "2026-02-24"},
+                "Total": {},
+                "Groups": [
+                    {"Keys": ["Amazon S3"], "Metrics": {"UnblendedCost": {"Amount": "0.40", "Unit": "USD"}}},
+                    {"Keys": ["Amazon ECS"], "Metrics": {"UnblendedCost": {"Amount": "0.49", "Unit": "USD"}}},
+                ],
+            }
+        ]
+    }
+
+    def fake_client(service_name, region_name=None):
+        assert service_name == "ce"
+        assert region_name == "us-east-1"
+        return fake_ce
+
+    monkeypatch.setattr("mcp_servers.aws_terraform_server.boto3.client", fake_client)
+    result = server._get_cost_explorer_summary(
+        {"start_date": "2026-02-01", "end_date": "2026-02-24", "granularity": "MONTHLY"}
+    )
+    assert result["success"] is True
+    assert result["total_cost"]["amount"] == 0.89
+    assert result["service_count"] == 2

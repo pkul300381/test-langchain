@@ -25,6 +25,10 @@ from core.capabilities import (
     is_capabilities_request,
     is_audience_request,
     build_audience_response,
+    is_maker_checker_request,
+    build_maker_checker_response,
+    is_out_of_scope_request,
+    build_out_of_scope_response,
 )
 from core.intent_policy import detect_read_only_intent, is_mutating_tool
 from core.llm_config import (
@@ -501,6 +505,32 @@ while True:
             )
             continue
 
+        if is_maker_checker_request(user_query):
+            print("\nAgent:")
+            print("-" * 60)
+            print(build_maker_checker_response())
+            workflow_event(
+                workflow_logger,
+                "maker_checker_response_generated",
+                source="cli",
+                run_id=run_id,
+                metadata={"class": "CLI", "method": "build_maker_checker_response"},
+            )
+            continue
+
+        if is_out_of_scope_request(user_query):
+            print("\nAgent:")
+            print("-" * 60)
+            print(build_out_of_scope_response())
+            workflow_event(
+                workflow_logger,
+                "out_of_scope_request_blocked",
+                source="cli",
+                run_id=run_id,
+                metadata={"class": "CLI", "method": "build_out_of_scope_response"},
+            )
+            continue
+
         if is_capabilities_request(user_query):
             active_mcp = aws_mcp if MCP_AVAILABLE and aws_mcp else None
             print("\nAgent:")
@@ -584,7 +614,7 @@ while True:
                                 content=json.dumps(
                                     {
                                         "success": False,
-                                        "error": f"Blocked mutating tool '{tool_name}' because user intent is read-only. Use list_account_inventory, list_aws_resources, or describe_resource.",
+                                        "error": f"Blocked mutating tool '{tool_name}' because user intent is read-only. Use list_account_inventory, list_aws_resources, describe_resource, or get_cost_explorer_summary.",
                                     }
                                 ),
                                 tool_call_id=tool_call_id,

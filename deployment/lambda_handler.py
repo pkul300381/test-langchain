@@ -43,6 +43,10 @@ try:
         build_capabilities_response,
         is_audience_request,
         build_audience_response,
+        is_maker_checker_request,
+        build_maker_checker_response,
+        is_out_of_scope_request,
+        build_out_of_scope_response,
     )
 except ImportError:
     logger.error("Failed to import core.llm_config")
@@ -102,6 +106,30 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'conversation_history': conversation_history
             }
 
+        if is_maker_checker_request(query):
+            response_text = build_maker_checker_response()
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'is_real_deploy': False,
+                    'tool_usage': False
+                }),
+                'response': response_text,
+                'conversation_history': conversation_history
+            }
+
+        if is_out_of_scope_request(query):
+            response_text = build_out_of_scope_response()
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'is_real_deploy': False,
+                    'tool_usage': False
+                }),
+                'response': response_text,
+                'conversation_history': conversation_history
+            }
+
         if is_capabilities_request(query):
             active_mcp = aws_mcp if MCP_AVAILABLE and aws_mcp else None
             response_text = build_capabilities_response("aws_terraform" if active_mcp else "none", active_mcp, query)
@@ -132,9 +160,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "You MUST use tools for any AWS operations. "
             f"Deployment Integrity: {'REAL_MODE' if is_real_deploy else 'DRY_RUN_MODE'}. "
             "If in 'DRY_RUN_MODE', inform the user that infrastructure will not be actually deployed. "
+            "For AWS cost or billing questions, call get_cost_explorer_summary. "
             "For ECS deployments, use guided tool chain start_ecs_deployment_workflow -> update_ecs_deployment_workflow -> review_ecs_deployment_workflow -> create_ecs_service. "
             "After any Terraform-based create_* tool returns project_name, immediately call terraform_plan and terraform_apply with that exact project_name. "
-            "For read-only intents (list, summarize, describe, inventory), NEVER call creation/deployment/destruction tools."
+            "For read-only intents (list, summarize, describe, inventory, cost, billing), NEVER call creation/deployment/destruction tools."
         )
         
         messages = [HumanMessage(content=system_prompt if not conversation_history else "")]
@@ -170,7 +199,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     if read_only_intent and tool_is_mutating:
                         result = {
                             "success": False,
-                            "error": f"Blocked mutating tool '{tool_name}' because user intent is read-only. Use list_account_inventory, list_aws_resources, or describe_resource."
+                            "error": f"Blocked mutating tool '{tool_name}' because user intent is read-only. Use list_account_inventory, list_aws_resources, describe_resource, or get_cost_explorer_summary."
                         }
                     elif tool_name == "terraform_apply" and not is_real_deploy:
                         result = {"success": False, "error": "DRY_RUN_MODE: Actual deployment blocked. Please set DEPLOY_REAL_INFRA=true to proceed."}
